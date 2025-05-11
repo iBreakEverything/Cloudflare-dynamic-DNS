@@ -42,3 +42,23 @@ curl -fsSL "$DOWNLOAD_URL_CONFIG" -o "$CONFIG_FILENAME" || { echo "Download fail
 
 chmod +x "$SCRIPT_FILENAME"
 echo "✅ Downloaded and made executable: ./$SCRIPT_FILENAME"
+
+# Check if jq is installed
+if [[ $(jq --version 2>/dev/null| wc -c) -eq 0 ]]; then
+  # Choose installer
+  echo "Install jq:"
+  echo "1) apt"
+  echo "2) snap"
+  echo "3) yum"
+  echo "*) No"
+  read -rp "Enter choice [1-2]: " shell_choice
+
+  case "$shell_choice" in
+    1) apt install jq -y ;;
+    2) snap install jq ;;
+    3) yum install epel-release -y && yum install jq -y ;;
+    *) echo "jq not installed"; exit 1 ;;
+  esac
+fi
+
+echo "✅ $(jq --version)"
