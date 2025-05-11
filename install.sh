@@ -41,24 +41,35 @@ echo "Downloading $CONFIG_FILENAME..."
 curl -fsSL "$DOWNLOAD_URL_CONFIG" -o "$CONFIG_FILENAME" || { echo "Download failed!"; exit 1; }
 
 chmod +x "$SCRIPT_FILENAME"
-echo "✅ Downloaded and made executable: ./$SCRIPT_FILENAME"
+echo "✅  Downloaded and made executable: ./$SCRIPT_FILENAME"
 
 # Check if jq is installed
-if [[ $(jq --version 2>/dev/null| wc -c) -eq 0 ]]; then
-  # Choose installer
-  echo "Install jq:"
-  echo "1) apt"
-  echo "2) snap"
-  echo "3) yum"
-  echo "*) No"
-  read -rp "Enter choice [1-2]: " shell_choice
+if ! command -v jq >/dev/null 2>&1; then
+  echo "⚠️  jq is required but not installed."
+  read -rp "Do you want to install jq now? [y/N]: " install_jq
 
-  case "$shell_choice" in
-    1) apt install jq -y ;;
-    2) snap install jq ;;
-    3) yum install epel-release -y && yum install jq -y ;;
-    *) echo "jq not installed"; exit 1 ;;
+  case "$install_jq" in
+    [yY][eE][sS]|[yY])
+      echo "🔍 Detecting package manager..."
+
+      if command -v apt >/dev/null 2>&1; then
+        sudo apt update && sudo apt install -y jq
+      elif command -v dnf >/dev/null 2>&1; then
+        sudo dnf install -y jq
+      elif command -v yum >/dev/null 2>&1; then
+        sudo yum install -y epel-release && sudo yum install -y jq
+      elif command -v apk >/dev/null 2>&1; then
+        sudo apk add --no-cache jq
+      else
+        echo "❌ Could not determine package manager. Please install jq manually."
+        exit 1
+      fi
+      ;;
+    *)
+      echo "❌ jq is required to continue. Please install it manually."
+      exit 1
+      ;;
   esac
 fi
 
-echo "✅ $(jq --version)"
+echo "✔️  jq is installed; $(jq --version)"
