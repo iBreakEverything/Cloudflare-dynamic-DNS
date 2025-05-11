@@ -15,8 +15,7 @@ apt install jq
 ## Usage
 ### Manual run
 ```bash
-chmod +x /path/to/script/cloudflare-ipv4.sh
-/path/to/script/cloudflare-ipv4.sh
+/path/to/script/cloudflare-user-bash-ipv4.sh
 ```
 
 ### Crontab
@@ -31,12 +30,13 @@ This script is used with crontab. Specify the frequency of execution through cro
 # │ │ │ │ │ ┌───────────── command to issue                               
 # │ │ │ │ │ │
 # │ │ │ │ │ │
-# * * * * * /bin/bash {Location of the script}
+# * * * * * /bin/bash /path/to/script/cloudflare-crontab-bash-ipv4.sh
 ```
 
 ## Tested Environments:
-TODO
-~~Debian Bullseye 11 (Linux kernel: 6.1.28 | aarch64) <br />~~
+Ubuntu 24.04 (Linux 6.8.0 | x86-64)\
+WSL Ubuntu 24.04 (Linux 5.15.167 | x86-64)\
+Debian bookworm 12 (Linux kernel: 6.12.20 | arm64)\
 
 ## Contributing
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
