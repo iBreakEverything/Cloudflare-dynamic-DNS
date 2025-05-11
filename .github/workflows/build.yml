@@ -1,0 +1,39 @@
+name: Compile script
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build
+        run: python script/build.py
+
+      - name: List output files
+        id: files
+        run: |
+          echo "files=$(ls cloudflare*.sh | tr '\n' ',' | sed 's/,$//')" >> $GITHUB_OUTPUT
+
+      - name: Draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: ${{ steps.files.outputs.files }}
+          name: Release
+          tag_name: release-${{ github.run_number }}
