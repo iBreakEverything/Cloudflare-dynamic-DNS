@@ -28,7 +28,7 @@ jobs:
       - name: List output files
         id: files
         run: |
-          echo "files=$(ls cloudflare*.sh | tr '\n' ',' | sed 's/,$//')" >> $GITHUB_OUTPUT
+          echo "files=$(ls cloudflare* | grep -v template | tr '\n' ',' | sed 's/,$//')" >> $GITHUB_OUTPUT
 
       - name: Draft release
         uses: softprops/action-gh-release@v2
