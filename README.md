@@ -45,6 +45,12 @@ Ubuntu 24.04 (Linux 6.8.0 | x86-64)\
 WSL Ubuntu 24.04 (Linux 5.15.167 | x86-64)\
 Debian bookworm 12 (Linux kernel: 6.12.20 | arm64)\
 
+## WIP
+ - make it sh compatible
+ - add ipv6
+ - test crontab
+ - update ci/cd pipeline to update only on cloudflare-* files
+
 ## Contributing
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
 
