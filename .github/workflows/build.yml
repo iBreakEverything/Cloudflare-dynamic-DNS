@@ -23,7 +23,7 @@ jobs:
           python-version: '3.12'
 
       - name: Build
-        run: python script/build.py
+        run: python cicd/build.py
 
       - name: List output files
         id: files
