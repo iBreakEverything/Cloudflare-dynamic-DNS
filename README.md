@@ -5,11 +5,18 @@ This script is used to update Dynamic DNS (DDNS) service based on Cloudflare!
 
 ## Installation
 
+### Manual
 ```bash
 # Change <SCOPE> to user or crontab and <SHELL> to bash or sh
 wget https://github.com/iBreakEverything/Cloudflare-dynamic-DNS/releases/latest/download/cloudflare-<SCOPE>-<SHELL>-ipv4.sh
 wget https://github.com/iBreakEverything/Cloudflare-dynamic-DNS/releases/latest/download/cloudflare-ddns.conf
 apt install jq
+```
+
+### Install script
+```bash
+wget https://raw.githubusercontent.com/iBreakEverything/Cloudflare-dynamic-DNS/refs/heads/main/install.sh
+./install.sh
 ```
 
 ## Usage
