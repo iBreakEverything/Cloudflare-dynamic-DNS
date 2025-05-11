@@ -21,7 +21,6 @@ CONFIG_FILE="./cloudflare-ddns.conf"
 
 if [[ ! -f "$CONFIG_FILE" ]]; then
   logger "[DDNS Updater]$ERR Missing config file: $CONFIG_FILE"
-  echo "[DDNS Updater]$ERR Missing config file: $CONFIG_FILE" #DEBUG
   exit 1
 fi
 
@@ -38,18 +37,15 @@ for service in "${IP_SERVICES[@]}"; do
   if [[ "$RAW_IP" =~ $REGEX_IPV4 ]]; then
     CURRENT_IP="${BASH_REMATCH[0]}"
     logger "[DDNS Updater]$INFO Fetched IP: $CURRENT_IP"
-    echo "[DDNS Updater]$INFO Fetched IP: $CURRENT_IP" #DEBUG
     break
   else
     logger "[DDNS Updater]$WARN IP service $service failed."
-    echo "[DDNS Updater]$WARN IP service $service failed." #DEBUG
   fi
 done
 
 # Exit if IP fetching failed
 if [[ -z "$CURRENT_IP" ]]; then
   logger "[DDNS Updater]$ERR Failed to find a valid IP."
-  echo "[DDNS Updater]$ERR Failed to find a valid IP." #DEBUG
   exit 1
 fi
 
@@ -61,7 +57,6 @@ if [[ -f "$IP_FILE" ]]; then
   LAST_IP=$(cat "$IP_FILE")
   if [[ "$CURRENT_IP" == "$LAST_IP" ]]; then
     logger "[DDNS Updater]$INFO IP unchanged: $CURRENT_IP"
-    echo "[DDNS Updater]$INFO IP unchanged: $CURRENT_IP" #DEBUG
     exit 0
   fi
 fi
@@ -69,7 +64,6 @@ fi
 # Store new IP.
 echo "$CURRENT_IP" > "$IP_FILE"
 logger "[DDNS Updater]$CHANGE IP changed to: $CURRENT_IP"
-echo "[DDNS Updater]$CHANGE IP changed to: $CURRENT_IP" #DEBUG
 
 ###########################################
 ## Check and set the proper auth header
@@ -91,10 +85,8 @@ if $TEST_TOKEN; then
     -H "Content-Type:application/json")
   if [[ "true" == $(echo $token_valid | jq -r ".success") ]]; then
     logger "[DDNS Updater]$INFO $(echo $token_valid | jq -r '.messages[0].message')"
-    echo "[DDNS Updater]$INFO $(echo $token_valid | jq -r '.messages[0].message')" #DEBUG
   else
     logger "[DDNS Updater]$ERR $(echo $token_valid | jq -r '.errors[0].message')"
-    echo "[DDNS Updater]$ERR $(echo $token_valid | jq -r '.errors[0].message')" #DEBUG
     exit 1
   fi
 fi
@@ -114,14 +106,12 @@ record_count=$(echo $records | jq -r ".result_info.count")
 ###########################################
 if [[ $record_count -eq 0 ]]; then
   logger "[DDNS Updater]$INFO No records found."
-  echo "[DDNS Updater]$INFO No records found." #DEBUG
   record_ip=null
   update_record_id=null
 fi
 
 if [[ $record_count -eq 1 ]]; then
   logger "[DDNS Updater]$INFO One record found."
-  echo "[DDNS Updater]$INFO One record found." #DEBUG
   record_ip=$(echo $records | jq -r ".result[0].content")
   update_record_id=$(echo $records | jq -r ".result[0].id")
 fi
@@ -133,7 +123,6 @@ if [[ $record_count -gt 1 ]]; then
     for ((i = 1 ; i < record_count ; i++ )); do
       dns_record_id=$(echo $records | jq -r ".result[$i].id")
       logger "[DDNS Updater]$DELETE Deleting record with ID: $dns_record_id"
-      echo "[DDNS Updater]$DELETE Deleting record with ID: $dns_record_id" #DEBUG
       delete_status=$(curl -s https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records/$dns_record_id \
         -X DELETE \
         -H "X-Auth-Email: $CLOUDFLARE_EMAIL" \
@@ -142,7 +131,6 @@ if [[ $record_count -gt 1 ]]; then
     done
   else
     logger "[DDNS Updater]$WARN PURGE_ADDITIONAL_RECORDS set to $PURGE_ADDITIONAL_RECORDS. Updating first record only."
-    echo "[DDNS Updater]$WARN PURGE_ADDITIONAL_RECORDS set to $PURGE_ADDITIONAL_RECORDS. Updating first record only." #DEBUG
   fi
   record_ip=$(echo $records | jq -r ".result[0].content")
   update_record_id=$(echo $records | jq -r ".result[0].id")
@@ -153,7 +141,6 @@ fi
 ###########################################
 if [[ $record_ip == $CURRENT_IP ]]; then
   logger "[DDNS Updater]$INFO IP ($CURRENT_IP) for ${RECORD_NAME} has not changed."
-  echo "[DDNS Updater]$INFO IP ($CURRENT_IP) for ${RECORD_NAME} has not changed." #DEBUG
   exit 0
 fi
 
@@ -203,7 +190,6 @@ fi
 
 # Log status
 logger $update_status
-echo $update_status #DEBUG
 
 # Log status in slack
 if [[ $SLACK_URI != "" ]]; then
