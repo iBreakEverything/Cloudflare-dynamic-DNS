@@ -1,4 +1,4 @@
-#!/bin/bash
+#SHELL
 
 IP_SERVICES=(
   "https://api.ipify.org"
