@@ -35,5 +35,5 @@ jobs:
         with:
           draft: true
           files: ${{ steps.files.outputs.files }}
-          name: Release
+          name: ${{ steps.release_date.outputs.date }}
           tag_name: release-${{ github.run_number }}
