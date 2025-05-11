@@ -1,123 +1,228 @@
 #!/bin/bash
-## change to "bin/sh" when necessary
 
-auth_email=""                                       # The email used to login 'https://dash.cloudflare.com'
-auth_method="token"                                 # Set to "global" for Global API Key or "token" for Scoped API Token
-auth_key=""                                         # Your API Token or Global API Key
-zone_identifier=""                                  # Can be found in the "Overview" tab of your domain
-record_name=""                                      # Which record you want to be synced
-ttl=3600                                            # Set the DNS TTL (seconds)
-proxy="false"                                       # Set the proxy to true or false
-sitename=""                                         # Title of site "Example Site"
-slackchannel=""                                     # Slack Channel #example
-slackuri=""                                         # URI for Slack WebHook "https://hooks.slack.com/services/xxxxx"
-discorduri=""                                       # URI for Discord WebHook "https://discordapp.com/api/webhooks/xxxxx"
+IP_SERVICES=(
+  "https://api.ipify.org"
+  "https://ipv4.icanhazip.com"
+  "https://ipinfo.io/ip"
+)
 
+CHANGE="🔄"
+DELETE="🗑️ "
+DEBUG="🛠️"
+INFO="ℹ️ "
+WARN="⚠️ "
+ERR="❌"
+OK="✔️ "
+
+###########################################
+## Load config file
+###########################################
+CONFIG_FILE="./cloudflare-ddns.conf"
+
+if [[ ! -f "$CONFIG_FILE" ]]; then
+  logger "[DDNS Updater]$ERR Missing config file: $CONFIG_FILE"
+  echo "[DDNS Updater]$ERR Missing config file: $CONFIG_FILE" #DEBUG
+  exit 1
+fi
+
+source "$CONFIG_FILE"
 
 ###########################################
 ## Check if we have a public IP
 ###########################################
-ipv4_regex='([01]?[0-9]?[0-9]|2[0-4][0-9]|25[0-5])\.([01]?[0-9]?[0-9]|2[0-4][0-9]|25[0-5])\.([01]?[0-9]?[0-9]|2[0-4][0-9]|25[0-5])\.([01]?[0-9]?[0-9]|2[0-4][0-9]|25[0-5])'
-ip=$(curl -s -4 https://cloudflare.com/cdn-cgi/trace | grep -E '^ip'); ret=$?
-if [[ ! $ret == 0 ]]; then # In the case that cloudflare failed to return an ip.
-    # Attempt to get the ip from other websites.
-    ip=$(curl -s https://api.ipify.org || curl -s https://ipv4.icanhazip.com)
-else
-    # Extract just the ip from the ip line from cloudflare.
-    ip=$(echo $ip | sed -E "s/^ip=($ipv4_regex)$/\1/")
+REGEX_IPV4="([0-9]{1,3}\.){3}[0-9]{1,3}"
+
+# Try all the ip services for a valid IPv4 address
+for service in "${IP_SERVICES[@]}"; do
+  RAW_IP=$(curl -s $service)
+  if [[ "$RAW_IP" =~ $REGEX_IPV4 ]]; then
+    CURRENT_IP="${BASH_REMATCH[0]}"
+    logger "[DDNS Updater]$INFO Fetched IP: $CURRENT_IP"
+    echo "[DDNS Updater]$INFO Fetched IP: $CURRENT_IP" #DEBUG
+    break
+  else
+    logger "[DDNS Updater]$WARN IP service $service failed."
+    echo "[DDNS Updater]$WARN IP service $service failed." #DEBUG
+  fi
+done
+
+# Exit if IP fetching failed
+if [[ -z "$CURRENT_IP" ]]; then
+  logger "[DDNS Updater]$ERR Failed to find a valid IP."
+  echo "[DDNS Updater]$ERR Failed to find a valid IP." #DEBUG
+  exit 1
 fi
 
-# Use regex to check for proper IPv4 format.
-if [[ ! $ip =~ ^$ipv4_regex$ ]]; then
-    logger -s "DDNS Updater: Failed to find a valid IP."
-    exit 2
+# Store last public IP address
+IP_FILE="/var/tmp/last_public_ipv4"
+
+# Compare with stored IP
+if [[ -f "$IP_FILE" ]]; then
+  LAST_IP=$(cat "$IP_FILE")
+  if [[ "$CURRENT_IP" == "$LAST_IP" ]]; then
+    logger "[DDNS Updater]$INFO IP unchanged: $CURRENT_IP"
+    echo "[DDNS Updater]$INFO IP unchanged: $CURRENT_IP" #DEBUG
+    exit 0
+  fi
 fi
+
+# Store new IP.
+echo "$CURRENT_IP" > "$IP_FILE"
+logger "[DDNS Updater]$CHANGE IP changed to: $CURRENT_IP"
+echo "[DDNS Updater]$CHANGE IP changed to: $CURRENT_IP" #DEBUG
 
 ###########################################
 ## Check and set the proper auth header
 ###########################################
-if [[ "${auth_method}" == "global" ]]; then
-  auth_header="X-Auth-Key:"
+if [[ "${AUTH_METHOD}" == "global" ]]; then
+  AUTH_HEADER="X-Auth-Key:"
+  echo "[DDNS Updater]$DEBUG X-Auth header" #DEBUG
 else
-  auth_header="Authorization: Bearer"
+  AUTH_HEADER="Authorization: Bearer"
+  echo "[DDNS Updater]$DEBUG Bearer header" #DEBUG
 fi
 
 ###########################################
-## Seek for the A record
+## Test token
 ###########################################
-
-logger "DDNS Updater: Check Initiated"
-record=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$zone_identifier/dns_records?type=A&name=$record_name" \
-                      -H "X-Auth-Email: $auth_email" \
-                      -H "$auth_header $auth_key" \
-                      -H "Content-Type: application/json")
-
-###########################################
-## Check if the domain has an A record
-###########################################
-if [[ $record == *"\"count\":0"* ]]; then
-  logger -s "DDNS Updater: Record does not exist, perhaps create one first? (${ip} for ${record_name})"
-  exit 1
+if $TEST_TOKEN; then
+  token_valid=$(curl -s "https://api.cloudflare.com/client/v4/user/tokens/verify" \
+    -H "$AUTH_HEADER $CLOUDFLARE_API_KEY" \
+    -H "Content-Type:application/json")
+  if [[ "true" == $(echo $token_valid | jq -r ".success") ]]; then
+    logger "[DDNS Updater]$INFO $(echo $token_valid | jq -r '.messages[0].message')"
+    echo "[DDNS Updater]$INFO $(echo $token_valid | jq -r '.messages[0].message')" #DEBUG
+  else
+    logger "[DDNS Updater]$ERR $(echo $token_valid | jq -r '.errors[0].message')"
+    echo "[DDNS Updater]$ERR $(echo $token_valid | jq -r '.errors[0].message')" #DEBUG
+    exit 1
+  fi
 fi
 
 ###########################################
-## Get existing IP
+## Seek for the A records
 ###########################################
-old_ip=$(echo "$record" | sed -E 's/.*"content":"(([0-9]{1,3}\.){3}[0-9]{1,3})".*/\1/')
-# Compare if they're the same
-if [[ $ip == $old_ip ]]; then
-  logger "DDNS Updater: IP ($ip) for ${record_name} has not changed."
+records=$(curl -s "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?type=A&name=$RECORD_NAME" \
+  -H "X-Auth-Email: $CLOUDFLARE_EMAIL" \
+  -H "$AUTH_HEADER $CLOUDFLARE_API_KEY" \
+  -H "Content-Type: application/json")
+# Number of A records for RECORD_NAME
+record_count=$(echo $records | jq -r ".result_info.count")
+
+###########################################
+## Check if the domain has A records
+###########################################
+if [[ $record_count -eq 0 ]]; then
+  logger "[DDNS Updater]$INFO No records found."
+  echo "[DDNS Updater]$INFO No records found." #DEBUG
+  record_ip=null
+  update_record_id=null
+fi
+
+if [[ $record_count -eq 1 ]]; then
+  logger "[DDNS Updater]$INFO One record found."
+  echo "[DDNS Updater]$INFO One record found." #DEBUG
+  record_ip=$(echo $records | jq -r ".result[0].content")
+  update_record_id=$(echo $records | jq -r ".result[0].id")
+fi
+
+if [[ $record_count -gt 1 ]]; then
+  logger "[DDNS Updater]$WARN Multiple ($record_count) records found."
+  if $PURGE_ADDITIONAL_RECORDS; then
+    # Remove additional records
+    for ((i = 1 ; i < record_count ; i++ )); do
+      dns_record_id=$(echo $records | jq -r ".result[$i].id")
+      logger "[DDNS Updater]$DELETE Deleting record with ID: $dns_record_id"
+      echo "[DDNS Updater]$DELETE Deleting record with ID: $dns_record_id" #DEBUG
+      delete_status=$(curl -s https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records/$dns_record_id \
+        -X DELETE \
+        -H "X-Auth-Email: $CLOUDFLARE_EMAIL" \
+        -H "$AUTH_HEADER $CLOUDFLARE_API_KEY" \
+        -H "Content-Type: application/json")
+    done
+  else
+    logger "[DDNS Updater]$WARN PURGE_ADDITIONAL_RECORDS set to $PURGE_ADDITIONAL_RECORDS. Updating first record only."
+    echo "[DDNS Updater]$WARN PURGE_ADDITIONAL_RECORDS set to $PURGE_ADDITIONAL_RECORDS. Updating first record only." #DEBUG
+  fi
+  record_ip=$(echo $records | jq -r ".result[0].content")
+  update_record_id=$(echo $records | jq -r ".result[0].id")
+fi
+
+###########################################
+## Verify records
+###########################################
+if [[ $record_ip == $CURRENT_IP ]]; then
+  logger "[DDNS Updater]$INFO IP ($CURRENT_IP) for ${RECORD_NAME} has not changed."
+  echo "[DDNS Updater]$INFO IP ($CURRENT_IP) for ${RECORD_NAME} has not changed." #DEBUG
   exit 0
 fi
 
 ###########################################
-## Set the record identifier from result
+## Update A record
 ###########################################
-record_identifier=$(echo "$record" | sed -E 's/.*"id":"([A-Za-z0-9_]+)".*/\1/')
+if [[ $update_record_id != null ]]; then
+  cloudflare_response=$(curl -s https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records/$update_record_id \
+    -X PATCH \
+    -H 'Content-Type: application/json' \
+    -H "X-Auth-Email: $CLOUDFLARE_EMAIL" \
+    -H "$AUTH_HEADER $CLOUDFLARE_API_KEY" \
+    -d '{
+      "comment": "DDNS Updater",
+      "content": "'$CURRENT_IP'",
+      "name": "'$RECORD_NAME'",
+      "proxied": '$PROXIED',
+      "ttl": '$TTL',
+      "type": "A"
+    }')
+else
+  cloudflare_response=$(curl -s https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records \
+    -H 'Content-Type: application/json' \
+    -H "X-Auth-Email: $CLOUDFLARE_EMAIL" \
+    -H "$AUTH_HEADER $CLOUDFLARE_API_KEY" \
+    -d '{
+      "comment": "DDNS Updater",
+      "content": "'$CURRENT_IP'",
+      "name": "'$RECORD_NAME'",
+      "proxied": '$PROXIED',
+      "ttl": '$TTL',
+      "type": "A"
+    }')
+fi
 
 ###########################################
-## Change the IP@Cloudflare using the API
+## Status report
 ###########################################
-update=$(curl -s -X PATCH "https://api.cloudflare.com/client/v4/zones/$zone_identifier/dns_records/$record_identifier" \
-                     -H "X-Auth-Email: $auth_email" \
-                     -H "$auth_header $auth_key" \
-                     -H "Content-Type: application/json" \
-                     --data "{\"type\":\"A\",\"name\":\"$record_name\",\"content\":\"$ip\",\"ttl\":$ttl,\"proxied\":${proxy}}")
+if [[ "true" == $(echo $cloudflare_response | jq -r ".success") ]]; then
+  update_status="[DDNS Updater]$OK IP $CURRENT_IP set for $RECORD_NAME."
+  exit_val=0
+else
+  error_message=$(echo $cloudflare_response | jq -r '.errors[0].message')
+  update_status="[DDNS Updater]$ERR Failed to update: $error_message"
+  exit_val=1
+fi
 
-###########################################
-## Report the status
-###########################################
-case "$update" in
-*"\"success\":false"*)
-  echo -e "DDNS Updater: $ip $record_name DDNS failed for $record_identifier ($ip). DUMPING RESULTS:\n$update" | logger -s 
-  if [[ $slackuri != "" ]]; then
-    curl -L -X POST $slackuri \
-    --data-raw '{
-      "channel": "'$slackchannel'",
-      "text" : "'"$sitename"' DDNS Update Failed: '$record_name': '$record_identifier' ('$ip')."
-    }'
-  fi
-  if [[ $discorduri != "" ]]; then
-    curl -i -H "Accept: application/json" -H "Content-Type:application/json" -X POST \
-    --data-raw '{
-      "content" : "'"$sitename"' DDNS Update Failed: '$record_name': '$record_identifier' ('$ip')."
-    }' $discorduri
-  fi
-  exit 1;;
-*)
-  logger "DDNS Updater: $ip $record_name DDNS updated."
-  if [[ $slackuri != "" ]]; then
-    curl -L -X POST $slackuri \
-    --data-raw '{
-      "channel": "'$slackchannel'",
-      "text" : "'"$sitename"' Updated: '$record_name''"'"'s'""' new IP Address is '$ip'"
-    }'
-  fi
-  if [[ $discorduri != "" ]]; then
-    curl -i -H "Accept: application/json" -H "Content-Type:application/json" -X POST \
-    --data-raw '{
-      "content" : "'"$sitename"' Updated: '$record_name''"'"'s'""' new IP Address is '$ip'"
-    }' $discorduri
-  fi
-  exit 0;;
-esac
+# Log status
+logger $update_status
+echo $update_status #DEBUG
+
+# Log status in slack
+if [[ $SLACK_URI != "" ]]; then
+  json_payload=$(jq -n \
+  --arg channel "$SLACK_CHANNEL" \
+  --arg text "$update_status" \
+  '{content: $content}')
+  _=$(curl -s -L -X POST $SLACK_URI -d "$json_payload")
+fi
+
+# Log status in discord
+if [[ $DISCORD_URI != "" ]]; then
+  json_payload=$(jq -n \
+  --arg content "$update_status" \
+  '{content: $content}')
+  _=$(curl -s -i -X POST $DISCORD_URI \
+    -H "Accept: application/json" \
+    -H "Content-Type:application/json" \
+    -d "$json_payload")
+fi
+
+exit $exit_val
