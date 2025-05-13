@@ -18,7 +18,7 @@ OK="✔️ "
 ## Load config file
 ###########################################
 CONFIG_FILE_PATH=$(dirname "$(realpath $0)")
-CONFIG_FILE="./cloudflare-ddns.conf"
+CONFIG_FILE="$CONFIG_FILE_PATH/cloudflare-ddns.conf"
 
 if [[ ! -f "$CONFIG_FILE" ]]; then
   logger "[DDNS Updater]$ERR Missing config file: $CONFIG_FILE"
