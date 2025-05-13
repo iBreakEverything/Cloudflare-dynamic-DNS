@@ -17,6 +17,7 @@ OK="✔️ "
 ###########################################
 ## Load config file
 ###########################################
+CONFIG_FILE_PATH=$(dirname "$(realpath $0)")
 CONFIG_FILE="./cloudflare-ddns.conf"
 
 if [[ ! -f "$CONFIG_FILE" ]]; then

@@ -7,7 +7,7 @@ PREFIX = 'cloudflare'
 SUFFIX = 'ipv4.sh'
 
 modes = ['crontab', 'user']
-shells = ['sh', 'bash']
+shells = ['bash'] #sh not yet ready
 
 def main():
   with open(SCRIPT_FILE, 'r', encoding='utf8') as f:

@@ -4,9 +4,13 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'cloudflare-template-ipv4.sh'
   pull_request:
     branches:
       - main
+    paths:
+      - 'cloudflare-template-ipv4.sh'
 
 jobs:
   build:
@@ -23,7 +27,7 @@ jobs:
           python-version: '3.12'
 
       - name: Build
-        run: python cicd/build.py
+        run: python .github/cicd/build.py
 
       - name: List output files
         id: files
