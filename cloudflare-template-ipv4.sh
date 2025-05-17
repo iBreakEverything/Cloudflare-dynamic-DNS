@@ -62,8 +62,6 @@ if [[ -f "$IP_FILE" ]]; then
   fi
 fi
 
-# Store new IP.
-echo "$CURRENT_IP" > "$IP_FILE"
 logger "[DDNS Updater]$CHANGE IP changed to: $CURRENT_IP"
 
 ###########################################
@@ -183,6 +181,8 @@ fi
 if [[ "true" == $(echo $cloudflare_response | jq -r ".success") ]]; then
   update_status="[DDNS Updater]$OK IP $CURRENT_IP set for $RECORD_NAME."
   exit_val=0
+  # Store new IP.
+  echo "$CURRENT_IP" > "$IP_FILE"
 else
   error_message=$(echo $cloudflare_response | jq -r '.errors[0].message')
   update_status="[DDNS Updater]$ERR Failed to update: $error_message"
